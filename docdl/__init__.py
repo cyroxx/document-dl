@@ -315,7 +315,7 @@ class SeleniumWebPortal(WebPortal):
             return webdriver.Ie(options=webdriver_options)
 
         def _init_opera():
-            # pylint: disable=E0611,E1101
+            # pylint: disable=E0611
             return webdriver.Opera(options=webdriver_options)
 
         def _init_safari():
