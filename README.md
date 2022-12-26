@@ -14,7 +14,7 @@ documents.
 Websites that don't require any form of 2FA can be polled without interaction
 regularly using a cron job so documents are downloaded automatically.
 
-<br/>
+<br>
 
 ## Highlights
 
