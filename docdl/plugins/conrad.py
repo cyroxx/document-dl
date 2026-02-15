@@ -113,7 +113,7 @@ class Conrad(docdl.SeleniumWebPortal):
             # strip currency symbol
             amount = re.match(r"[^\d]*(\d+,\d+).*", amount)[1]
             # create filename
-            filename = f"conrad-{date.replace('.','-')}-{doctype}-{number}.pdf"
+            filename = f"conrad-{date.replace('.', '-')}-{doctype}-{number}.pdf"
             # create document
             yield docdl.Document(
                 download_element=invoice,

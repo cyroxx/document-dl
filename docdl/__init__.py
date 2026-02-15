@@ -66,17 +66,17 @@ class WebPortal:
 
     def login(self):
         """authenticate to service"""
-        raise NotImplementedError(f"{ self.__class__} needs a login() method")
+        raise NotImplementedError(f"{self.__class__} needs a login() method")
 
     def logout(self):
         """deauthenticate to service"""
-        raise NotImplementedError(f"{ self.__class__} needs a logout() method")
+        raise NotImplementedError(f"{self.__class__} needs a logout() method")
 
     def documents(self):
         """
         generator that iterates all available and yields docdl.Documents()
         """
-        raise NotImplementedError(f"{ self.__class__} needs a documents() generator")
+        raise NotImplementedError(f"{self.__class__} needs a documents() generator")
 
     def download(self, document):
         """download document url"""
@@ -322,7 +322,7 @@ class SeleniumWebPortal(WebPortal):
         """
         generator that iterates all available and yields docdl.Documents()
         """
-        raise NotImplementedError(f"{ self.__class__} needs a documents() generator")
+        raise NotImplementedError(f"{self.__class__} needs a documents() generator")
 
     def download(self, document):
         """download a document"""
