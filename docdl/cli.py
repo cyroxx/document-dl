@@ -1,12 +1,12 @@
 """download documents from web portals"""
 
-import pkg_resources
+import importlib.metadata
 import click
 import click_plugins
 import docdl
 
 
-@click_plugins.with_plugins(pkg_resources.iter_entry_points("docdl_plugins"))
+@click_plugins.with_plugins(importlib.metadata.entry_points(group="docdl_plugins"))
 @click.group(
     context_settings={
         "help_option_names": ["-h", "--help"],
