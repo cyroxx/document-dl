@@ -6,6 +6,7 @@ download documents from Amazon
 
 import re
 import click
+from slugify import slugify
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
@@ -24,16 +25,18 @@ class Amazon(docdl.SeleniumWebPortal):
 
     def login(self):
         # use this toplevel domain
-        tld = self.arguments['tld']
+        tld = self.arguments["tld"]
         # load homepage
         self.webdriver.get(f"https://amazon.{tld}")
         # wait for account-link or captcha request
         WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located((
-                By.XPATH,
-                "//a[@id='nav-link-accountList'] | "
-                "//input[@id='captchacharacters']"
-            ))
+            EC.presence_of_element_located(
+                (
+                    By.XPATH,
+                    "//a[@id='nav-link-accountList'] | "
+                    "//input[@id='captchacharacters']",
+                )
+            )
         )
         # captcha entry ?
         if captcha_entry := self.webdriver.find_elements(
@@ -43,11 +46,12 @@ class Amazon(docdl.SeleniumWebPortal):
 
         # get loginbutton
         loginbutton = WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located((
-                By.XPATH,
-                "//a[@id='nav-link-accountList'] | "
-                "//a[@data-nav-role='signin']"
-            ))
+            EC.presence_of_element_located(
+                (
+                    By.XPATH,
+                    "//a[@id='nav-link-accountList'] | //a[@data-nav-role='signin']",
+                )
+            )
         )
         # click "login"
         loginbutton.click()
@@ -55,16 +59,20 @@ class Amazon(docdl.SeleniumWebPortal):
         self._send_username()
         # wait for password entry or error
         if not self._wait_for_result(
-            By.CSS_SELECTOR, "input#ap_password",
-            By.CSS_SELECTOR, "div#auth-error-message-box"
+            By.CSS_SELECTOR,
+            "input#ap_password",
+            By.CSS_SELECTOR,
+            "div#auth-error-message-box",
         ):
             return False
         # handle password dialog
         self._send_password()
         # wait for signout link or error
         if not self._wait_for_result(
-            By.CSS_SELECTOR, "a#nav-item-signout",
-            By.CSS_SELECTOR, "div#auth-error-message-box"
+            By.CSS_SELECTOR,
+            "a#nav-item-signout",
+            By.CSS_SELECTOR,
+            "div#auth-error-message-box",
         ):
             # mobile phone entry?
             if skipbutton := self.webdriver.find_elements(
@@ -73,8 +81,10 @@ class Amazon(docdl.SeleniumWebPortal):
                 skipbutton.click()
                 # wait for signout link or error
                 if not self._wait_for_result(
-                    By.CSS_SELECTOR, "a#nav-item-signout",
-                    By.CSS_SELECTOR, "div#auth-error-message-box"
+                    By.CSS_SELECTOR,
+                    "a#nav-item-signout",
+                    By.CSS_SELECTOR,
+                    "div#auth-error-message-box",
                 ):
                     return False
             # no mobile phone entry
@@ -83,22 +93,20 @@ class Amazon(docdl.SeleniumWebPortal):
         return True
 
     def logout(self):
-        tld = self.arguments['tld']
+        tld = self.arguments["tld"]
         self.webdriver.get(f"https://www.amazon.{tld}/gp/flex/sign-out.html")
 
     def documents(self):
         # count all documents
         i = 0
         # use this toplevel domain
-        tld = self.arguments['tld']
+        tld = self.arguments["tld"]
         # load page with orders
-        self.webdriver.get(
-            f"https://www.amazon.{tld}/gp/your-account/order-history"
-        )
+        self.webdriver.get(f"https://www.amazon.{tld}/gp/your-account/order-history")
         # get options from orderfilter so we get all available invoices
         options = self._orderfilter_options()
         # iterate all years (+ archived orders)
-        limit_year = self.arguments['limit_year']
+        limit_year = self.arguments["limit_year"]
         for option in options:
             # skip years in limited mode
             if limit_year and option != f"year-{limit_year}":
@@ -115,7 +123,8 @@ class Amazon(docdl.SeleniumWebPortal):
             self._load_all_orders()
             # save all order detail links
             order_detail_links = [
-                e.get_attribute("href") for e in self.webdriver.find_elements(
+                e.get_attribute("href")
+                for e in self.webdriver.find_elements(
                     By.XPATH, "//a[contains(@href, 'order-details')]"
                 )
             ]
@@ -129,8 +138,10 @@ class Amazon(docdl.SeleniumWebPortal):
                 self.webdriver.get(order_link)
                 # wait for invoice links or alert
                 if not self._wait_for_result(
-                    By.CSS_SELECTOR, ".order-date-invoice-item",
-                    By.CSS_SELECTOR, ".a-alert-container"
+                    By.CSS_SELECTOR,
+                    ".order-date-invoice-item",
+                    By.CSS_SELECTOR,
+                    ".a-alert-container",
                 ):
                     # skip on alert
                     continue
@@ -139,13 +150,7 @@ class Amazon(docdl.SeleniumWebPortal):
                     By.XPATH, "//a[contains(@href, '.pdf')]"
                 )
                 # remove doubles
-                invoice_urls = set(
-                    e.get_attribute("href") for e in invoice_urls
-                )
-                # some orders don't have invoices
-                if len(invoice_urls) == 0:
-                    # skip this order
-                    continue
+                invoice_urls = set(e.get_attribute("href") for e in invoice_urls)
                 # extract items that contain order number and order date
                 date_nr = self.webdriver.find_elements(
                     By.CSS_SELECTOR, "span.order-date-invoice-item"
@@ -154,19 +159,48 @@ class Amazon(docdl.SeleniumWebPortal):
                 order_nr = date_nr[1].get_attribute("textContent").strip()
                 # parse date
                 date = re.match(r"[^\d]*(.+)$", date)[1]
+                date = docdl.util.parse_date(date)
                 # parse order number
                 order_nr = re.match(r"[^\d]*(.+)$", order_nr)[1]
+                # get product name
+                product_name = (
+                    self.webdriver.find_element(
+                        By.XPATH,
+                        "//div[@class='a-row']/a[contains(@href, '/product/')]",
+                    )
+                    .get_attribute("textContent")
+                    .strip()
+                )
+                # some orders don't have invoices
+                if len(invoice_urls) == 0:
+                    # generate empty entry with warning
+                    yield docdl.Document(
+                        url=None,
+                        attributes={
+                            "date": date,
+                            "order": order_nr,
+                            "id": i,
+                            "product": product_name,
+                            "warning": "no invoice available!",
+                        },
+                    )
+                    continue
 
                 # generate invoices
                 for url in invoice_urls:
+                    filename = (
+                        f"amazon-{date.strftime('%Y%m%d')}-"
+                        f"{order_nr}-{slugify(product_name)}.pdf"
+                    )
                     yield docdl.Document(
                         url=url,
                         attributes={
-                            'date': docdl.util.parse_date(date),
-                            'order': order_nr,
-                            'id': i,
-                            'filename': f"amazon-invoice-{order_nr}.pdf"
-                        }
+                            "date": date,
+                            "order": order_nr,
+                            "id": i,
+                            "product": product_name,
+                            "filename": filename,
+                        },
                     )
                     # increment counter
                     i += 1
@@ -175,13 +209,12 @@ class Amazon(docdl.SeleniumWebPortal):
         # wait for dropdown to select orders
         # (last months, years, archived)
         orderfilter = WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located((
-                By.CSS_SELECTOR, "select#orderFilter"
-            ))
+            EC.presence_of_element_located((By.XPATH, ".//select[@name='orderFilter']"))
         )
         # extract values of year options
         options = [
-            o.get_attribute("value") for o in orderfilter.find_elements(
+            o.get_attribute("value")
+            for o in orderfilter.find_elements(
                 By.XPATH, ".//option[contains(@value, 'year')]"
             )
         ]
@@ -196,18 +229,12 @@ class Amazon(docdl.SeleniumWebPortal):
     def _set_orderfilter(self, option):
         # find <select> for order filter
         orderfilter = WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located((
-                By.CSS_SELECTOR, "select#orderFilter"
-            ))
+            EC.presence_of_element_located((By.XPATH, ".//select[@name='orderFilter']"))
         )
         # move <select> to front
-        self.webdriver.execute_script(
-            "arguments[0].style.zIndex='99'", orderfilter
-        )
+        self.webdriver.execute_script("arguments[0].style.zIndex='99'", orderfilter)
         orderfilter = WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.element_to_be_clickable((
-                By.CSS_SELECTOR, "select#orderFilter"
-            ))
+            EC.element_to_be_clickable((By.XPATH, ".//select[@name='orderFilter']"))
         )
         # select current option
         orderfilter_select = Select(orderfilter)
@@ -224,9 +251,9 @@ class Amazon(docdl.SeleniumWebPortal):
             self.scroll_to_bottom()
             # wait for loader to disappear
             WebDriverWait(self.webdriver, self.TIMEOUT).until(
-                EC.invisibility_of_element_located((
-                    By.CSS_SELECTOR, ".rhf-loading-inner"
-                ))
+                EC.invisibility_of_element_located(
+                    (By.CSS_SELECTOR, ".rhf-loading-inner")
+                )
             )
             # loop until height doesn't change
             if height == self.webdriver.execute_script(
@@ -250,9 +277,7 @@ class Amazon(docdl.SeleniumWebPortal):
     def _send_username(self):
         # wait for email page
         email = WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located((
-                By.CSS_SELECTOR, "input#ap_email"
-            ))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "input#ap_email"))
         )
         # send username
         email.send_keys(self.login_id)
@@ -260,20 +285,15 @@ class Amazon(docdl.SeleniumWebPortal):
 
     def _send_password(self):
         # send password
-        password = self.webdriver.find_element(
-            By.CSS_SELECTOR, "input#ap_password"
-        )
+        password = self.webdriver.find_element(By.CSS_SELECTOR, "input#ap_password")
         password.send_keys(self.password)
         password.submit()
 
-    def _wait_for_result(
-        self, success_by, success_selector, error_by, error_selector
-    ):
+    def _wait_for_result(self, success_by, success_selector, error_by, error_selector):
         # wait for success element or error dialog
         WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            lambda d:
-                d.find_elements(success_by, success_selector) or
-                d.find_elements(error_by, error_selector)
+            lambda d: d.find_elements(success_by, success_selector)
+            or d.find_elements(error_by, error_selector)
         )
         # error ?
         if self.webdriver.find_elements(error_by, error_selector):
@@ -289,7 +309,7 @@ class Amazon(docdl.SeleniumWebPortal):
     default="de",
     show_default=True,
     show_envvar=True,
-    help="toplevel domain to use"
+    help="toplevel domain to use",
 )
 @click.option(
     "-y",
@@ -298,10 +318,10 @@ class Amazon(docdl.SeleniumWebPortal):
     show_envvar=True,
     default=None,
     help="limit handling to documents of the given year",
-    show_default=True
+    show_default=True,
 )
 @click.pass_context
 # pylint: disable=W0613
 def amazon(ctx, *args, **kwargs):
-    """Amazon (invoices)"""
+    """amazon.com (invoices)"""
     docdl.cli.run(ctx, Amazon)

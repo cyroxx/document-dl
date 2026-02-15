@@ -31,7 +31,7 @@ regularly using a cron job so documents are downloaded automatically.
   * handyvertrag.de
   * dkb.de
   * o2.de
-  * kabel.vodafone.de
+  * www.vodafone.de
   * conrad.de
   * elster.de
   * strato.de
@@ -42,11 +42,12 @@ regularly using a cron job so documents are downloaded automatically.
 * [python](https://python.org)
 * [click](https://github.com/pallets/click)
 * [click-plugins](https://github.com/click-contrib/click-plugins)
-* [watchdog](https://github.com/gorakhargosh/watchdog)
 * [jq](https://github.com/mwilliamson/jq.py)
 * [python-dateutil](https://dateutil.readthedocs.io/en/stable/)
 * [requests](https://docs.python-requests.org/en/master/)
 * [selenium](https://selenium-python.readthedocs.io/) (default webdriver is "chrome")
+* [slugify](https://github.com/un33k/python-slugify)
+* [watchdog](https://github.com/gorakhargosh/watchdog)
 
 <br><br>
 ## Installation (for debian bullseye)
@@ -92,23 +93,28 @@ Options:
                                   [env var: DOCDL_JQ_MATCHES]
   -H, --headless / --show         show/hide browser window  [env var:
                                   DOCDL_HEADLESS; default: headless]
-  -b, --browser [chrome|edge|firefox|ie|opera|safari|webkitgtk]
+  -b, --browser [chrome|edge|firefox|ie|safari|webkitgtk]
                                   webdriver to use for selenium based plugins
                                   [env var: DOCDL_BROWSER; default: chrome]
   -t, --timeout INTEGER           seconds to wait for data before terminating
                                   connection  [env var: DOCDL_TIMEOUT;
-                                  default: 15]
+                                  default: 25]
   -i, --image-loading BOOLEAN     Turn off image loading when False  [env var:
                                   DOCDL_IMAGE_LOADING; default: False]
-  -a, --action [download|list]    download or just list documents  [env var:
-                                  DOCDL_ACTION; default: list]
+  -l, --list                      list documents  [env var: DOCDL_ACTION;
+                                  default: list]
+  -d, --download                  download documents  [env var: DOCDL_ACTION;
+                                  default: list]
   -f, --format [list|dicts]       choose between line buffered output of json
                                   dicts or single json list  [env var:
                                   DOCDL_OUTPUT_FORMAT; default: dicts]
+  -D, --debug                     use selenium remote debugging on port 9222
+                                  [env var: DOCDL_DEBUG]
   -h, --help                      Show this message and exit.
 
 Commands:
-  amazon        Amazon (invoices)
+  amazon        amazon.com (invoices)
+  believe       believebackstage.com (financial reports + catalog export)
   conrad        conrad.de (invoices)
   dkb           dkb.de with chipTAN QR (postbox)
   elster        elster.de with path to .pfx certfile as username (postbox)
@@ -116,7 +122,7 @@ Commands:
   ing           banking.ing.de with photoTAN (postbox)
   o2            o2online.de (invoices, call record, postbox)
   strato        strato.de (invoices)
-  vodafone      kabel.vodafone.de (postbox, invoices)
+  vodafone      www.vodafone.de (invoices)
 ```
 
 Display plugin-specific help:
@@ -157,9 +163,9 @@ Download all documents from conrad.de, pass credentials as env vars:
 $ DOCDL_USERNAME='mylogin' DOCDL_PASSWORD='mypass' document-dl --action download conrad
 ```
 
-Download all documents from o2online.de where "doctype" attribute contains "BILL":
+Download all documents from o2online.de where "category" attribute contains "BILL":
 ```sh
-$ document-dl --match doctype BILL --action download o2
+$ document-dl --match category BILL --action download o2
 ```
 
 You can also use regular expressions to filter documents:
@@ -177,6 +183,33 @@ Download document from elster.de with id == 15:
 $ document-dl --jq 'contains({id: 15})' --action download elster
 ```
 
+You can create a config file ```.o2_documentdlrc``` like so:
+```sh
+DOCDL_PLUGIN="o2"
+DOCDL_USERNAME="01771234567"
+DOCDL_PASSWORD="super-secret-password"
+DOCDL_ACTION="download"
+DOCDL_DSTPATH="${HOME}/Documents/o2"
+DOCDL_TIMEOUT="30"
+```
+
+then invoke document-dl in a script like so:
+
+```sh
+#!/bin/bash
+
+CONFIG="${HOME}/.config/.o2_documentdlrc"
+
+# load config
+set -a
+. "${CONFIG}" || error "parsing config ${CONFIG}"
+set +a
+# cd to target dir
+cd "${DOCDL_DSTPATH}"
+# download documents
+/usr/bin/document-dl "${DOCDL_PLUGIN}"
+```
+
 
 <br><br>
 ## Security
@@ -184,7 +217,7 @@ BEWARE that your login credentials are most probably **saved in your shell
 history when you pass them as commandline arguments**.
 You can use the input prompt to avoid that or set environment variables
 securely.
-
+Make sure to set secure permissions when saving credentials on a trusted system (e.g. ```chmod 0600 <file>```)
 
 <br><br>
 ## Writing a plugin
@@ -200,9 +233,15 @@ Roughly, you have to:
     ```self.session``` that's initialized for you
   * if you need selenium, inherit from ```docdl.SeleniumWebPortal``` and use
     ```self.webdriver``` that's initialized for you
-  * add a *login()*, *logout()* and *documents()* method.
+  * add a
+    * login() method,
+    * logout() method and
+    * documents() generator that yields ```docdl.Document()``` instances
+    * optional: download() method if you need to do more fancy stuff than downloading an URLs and saving it to a file
 * add click glue code
 * add your plugin to setup.py docdl_plugins registry
+
+Checkout other plugins as example.
 
 ### requests plugin example
 
