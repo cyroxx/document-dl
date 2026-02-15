@@ -130,7 +130,7 @@ import docdl
     show_default=True,
 )
 @click.pass_context
-# pylint: disable=W0613,C0103,R0913
+# pylint: disable=W0613,C0103,R0913,R0917
 def documentdl(
     ctx,
     username,
