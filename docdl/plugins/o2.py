@@ -3,8 +3,10 @@
 import itertools
 import click
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
 
 import docdl
 import docdl.util
@@ -27,7 +29,9 @@ class O2(docdl.SeleniumWebPortal):
     def login(self):
         """authenticate"""
         self.webdriver.get(self.URL_LOGIN)
-        
+
+        self._handle_cookiebanner()
+
         # find entry field
         # (the login form is inside a shadow DOM, so we have to get inside it first)
         shadow_host = WebDriverWait(self.webdriver, self.TIMEOUT).until(
@@ -40,7 +44,7 @@ class O2(docdl.SeleniumWebPortal):
         username.send_keys(self.login_id)
         # save current URL
         current_url = self.webdriver.current_url
-        
+
         # submit form (Button "Weiter")
         submit_button = WebDriverWait(self.webdriver, self.TIMEOUT).until(
             EC.element_to_be_clickable((By.ID, "IDToken5_4_od_0"))
@@ -67,34 +71,6 @@ class O2(docdl.SeleniumWebPortal):
 
         # wait for page to load
         current_url = self.wait_for_urlchange(current_url)
-        # wait for cookie-banner container
-        WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "//div[@id='usercentrics-root'] | "
-                    "//div[contains(@data-test-id, 'unified-login-error')]",
-                )
-            )
-        )
-        # get cookie-banner container
-        if container := self.webdriver.find_element(
-            By.XPATH, "//div[@id='usercentrics-root']"
-        ):
-            # get inside DOM element so we can use XPATH
-            container = container.shadow_root.find_element(By.CSS_SELECTOR, "section")
-
-            # wait for cookie banner
-            WebDriverWait(container, self.TIMEOUT).until(
-                EC.visibility_of_element_located(
-                    (By.XPATH, ".//button[contains(text(), 'Verweigern')]")
-                )
-            )
-            # click "reject" button if there is one
-            button = container.find_element(
-                By.XPATH, ".//button[contains(text(), 'Verweigern')]"
-            )
-            button.click()
 
         # click "close" button if there is one
         closebutton = self.webdriver.find_elements(
@@ -190,6 +166,77 @@ class O2(docdl.SeleniumWebPortal):
                         "filename": f"o2-{year}-{month}-{day}-{category}.pdf",
                     },
                 )
+
+    def _handle_cookiebanner(self):
+        wait = WebDriverWait(self.webdriver, self.TIMEOUT)
+
+        # Find host (if not found -> done)
+        hosts = self.webdriver.find_elements(By.CSS_SELECTOR, "div#usercentrics-root")
+        if not hosts:
+            return
+        host = hosts[0]
+
+        # Wait until ShadowRoot + App-Container is available
+        def _get_app_container(_driver):
+            try:
+                sr = host.shadow_root
+                return sr.find_element(By.CSS_SELECTOR, "[data-testid='uc-app-container']")
+            except Exception:
+                return False
+
+        try:
+            app = wait.until(_get_app_container)
+        except TimeoutException:
+            return
+
+        # Candidates: prefer data-testid, fallback to text
+        deny_css = [
+            "[data-testid='uc-deny-all-button']",
+            "[data-testid='uc-reject-all-button']",
+            "[data-testid='uc-deny-button']",
+        ]
+
+        btn = None
+        for sel in deny_css:
+            try:
+                btn = app.find_element(By.CSS_SELECTOR, sel)
+                break
+            except NoSuchElementException:
+                pass
+
+        if btn is None:
+            xpath = (
+                ".//button[contains(., 'Verweigern') or contains(., 'Ablehnen') "
+                "or contains(., 'Reject') or contains(., 'Deny')]"
+            )
+            try:
+                btn = app.find_element(By.XPATH, xpath)
+            except NoSuchElementException:
+                return
+
+        # Wait until button is visible & enabled (without JS)
+        wait.until(lambda d: btn.is_displayed() and btn.is_enabled())
+
+        # If button is in scroll container: bring into view
+        try:
+            btn.location_once_scrolled_into_view
+        except Exception:
+            pass
+
+        # Normal click - with gentle fallbacks (without JS)
+        try:
+            btn.click()
+        except ElementClickInterceptedException:
+            # sometimes a focus lock/overlay is on top -> ESC can help
+            self.webdriver.switch_to.active_element.send_keys(Keys.ESC)
+            wait.until(lambda d: btn.is_displayed() and btn.is_enabled())
+            btn.click()
+
+        # Optional: wait until banner disappeared / no longer visible
+        try:
+            wait.until(lambda d: not host.is_displayed())
+        except Exception:
+            pass
 
 
 @click.command()
