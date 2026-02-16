@@ -27,36 +27,44 @@ class O2(docdl.SeleniumWebPortal):
     def login(self):
         """authenticate"""
         self.webdriver.get(self.URL_LOGIN)
+        
         # find entry field
-        username = self.webdriver.find_element(By.XPATH, "//input[@name='IDToken1']")
-        # wait for entry field
-        WebDriverWait(self.webdriver, self.TIMEOUT).until(EC.visibility_of(username))
+        # (the login form is inside a shadow DOM, so we have to get inside it first)
+        shadow_host = WebDriverWait(self.webdriver, self.TIMEOUT).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "one-input#idToken4_od"))
+        )
+        shadow_root = shadow_host.shadow_root
+        username = shadow_root.find_element(By.CSS_SELECTOR, "input")
+
         # send username
         username.send_keys(self.login_id)
         # save current URL
         current_url = self.webdriver.current_url
-        # submit form
-        username.submit()
+        
+        # submit form (Button "Weiter")
+        submit_button = WebDriverWait(self.webdriver, self.TIMEOUT).until(
+            EC.element_to_be_clickable((By.ID, "IDToken5_4_od_0"))
+        )
+
+        submit_button.click()
+
         # wait for either password prompt or failure message
-        WebDriverWait(self.webdriver, self.TIMEOUT).until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "//input[contains(@type, 'password')] | "
-                    "//div[contains(@data-test-id, 'unified-login-error')]",
-                )
-            )
+        # TODO: wait for failure
+        pw_shadow_host = WebDriverWait(self.webdriver, self.TIMEOUT).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "one-input#idToken5_od"))
         )
         # find entry field
-        password = self.webdriver.find_element(
-            By.XPATH, "//input[contains(@type, 'password')]"
-        )
-        # wait for entry field
-        WebDriverWait(self.webdriver, self.TIMEOUT).until(EC.visibility_of(password))
+        password = pw_shadow_host.shadow_root.find_element(By.CSS_SELECTOR, "input[type='password']")
+
         # send password
         password.send_keys(self.password)
         # submit form
-        password.submit()
+        login_btn = WebDriverWait(self.webdriver, self.TIMEOUT).until(
+            EC.element_to_be_clickable((By.ID, "IDToken6_5_od_1"))
+        )
+
+        login_btn.click()
+
         # wait for page to load
         current_url = self.wait_for_urlchange(current_url)
         # wait for cookie-banner container
