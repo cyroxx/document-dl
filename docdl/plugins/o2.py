@@ -228,7 +228,7 @@ class O2(docdl.SeleniumWebPortal):
             btn.click()
         except ElementClickInterceptedException:
             # sometimes a focus lock/overlay is on top -> ESC can help
-            self.webdriver.switch_to.active_element.send_keys(Keys.ESC)
+            self.webdriver.switch_to.active_element.send_keys(Keys.ESCAPE)
             wait.until(lambda d: btn.is_displayed() and btn.is_enabled())
             btn.click()
 
